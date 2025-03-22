@@ -8,8 +8,21 @@ import kotlinx.serialization.json.JsonObject
 import org.clickhouse.connection.ClickhouseConnection
 import org.clickhouse.utils.ClickhouseUtils
 
+/**
+ * Реализация [IClickhouseService] для выполнения CRUD операций над базой данных ClickHouse.
+ *
+ * Операции выполняются с использованием пула соединений, предоставляемого [ClickhouseConnection], и
+ * утилит из [ClickhouseUtils] для валидации, преобразования JSON и работы с ResultSet.
+ */
 class ClickhouseService : IClickhouseService {
 
+  /**
+   * Вставляет данные в таблицу.
+   *
+   * @param table Имя таблицы.
+   * @param data Список JSON объектов, содержащих данные.
+   * @return Количество вставленных записей.
+   */
   override suspend fun insert(table: String, data: List<JsonObject>): Int =
       withContext(Dispatchers.IO) {
         if (data.isEmpty()) return@withContext 0
@@ -35,6 +48,17 @@ class ClickhouseService : IClickhouseService {
         data.size
       }
 
+  /**
+   * Выполняет SELECT запрос к таблице.
+   *
+   * @param table Имя таблицы.
+   * @param columns Список колонок для выборки.
+   * @param filters Карта фильтров для условия WHERE.
+   * @param orderBy Опциональное условие сортировки.
+   * @param limit Опциональное ограничение количества записей.
+   * @param offset Опциональное смещение.
+   * @return Список записей в виде имя столбца - значение
+   */
   override suspend fun select(
       table: String,
       columns: List<String>,
@@ -82,6 +106,19 @@ class ClickhouseService : IClickhouseService {
         }
       }
 
+  /**
+   * Обновляет записи в таблице ClickHouse.
+   *
+   * Обновляются только те поля, которые переданы в data, путем прямой подстановки литералов.
+   * Условие WHERE формируется через подстановку значений, используя утилиту
+   * [ClickhouseUtils.substitutePlaceholders].
+   *
+   * @param table Имя таблицы.
+   * @param data Карта новых значений (JSON элементы).
+   * @param condition Условие WHERE с плейсхолдерами (?).
+   * @param conditionParams Список параметров для условия.
+   * @return Количество строк, удовлетворяющих условию (до обновления).
+   */
   override suspend fun update(
       table: String,
       data: Map<String, JsonElement>,
@@ -114,6 +151,17 @@ class ClickhouseService : IClickhouseService {
         }
       }
 
+  /**
+   * Удаляет записи из таблицы ClickHouse.
+   *
+   * Условие WHERE формируется путем подстановки литералов через
+   * [ClickhouseUtils.substitutePlaceholders].
+   *
+   * @param table Имя таблицы.
+   * @param condition Условие WHERE с подстановочными знаками (?).
+   * @param conditionParams Список параметров для условия.
+   * @return Если 0 то гуд, иначе ошибка.
+   */
   override suspend fun delete(
       table: String,
       condition: String,
