@@ -1,5 +1,7 @@
 package org.clickhouse.connection
 
+import io.github.cdimascio.dotenv.dotenv
+
 data class ClickhouseConfig(
     val clickhouseUrl: String,
     val clickhouseUser: String,
@@ -9,13 +11,14 @@ data class ClickhouseConfig(
 ) {
   companion object {
     fun load(): ClickhouseConfig {
-      val clickhouseUrl =
-          EnvLoader.get("CLICKHOUSE_URL") ?: "jdbc:clickhouse://localhost:8123/default"
-      val clickhouseUser = EnvLoader.get("CLICKHOUSE_USER") ?: "default"
-      val clickhousePassword = EnvLoader.get("CLICKHOUSE_PASSWORD") ?: ""
+      val dotenv = dotenv()
 
-      val apiHost = EnvLoader.get("API_HOST") ?: "0.0.0.0"
-      val apiPort = EnvLoader.get("API_PORT")?.toIntOrNull() ?: 8080
+      val clickhouseUrl = dotenv["CLICKHOUSE_URL"] ?: "jdbc:clickhouse://localhost:8123/default"
+      val clickhouseUser = dotenv["CLICKHOUSE_USER"] ?: "default"
+      val clickhousePassword = dotenv["CLICKHOUSE_PASSWORD"] ?: ""
+
+      val apiHost = dotenv["API_HOST"] ?: "0.0.0.0"
+      val apiPort = dotenv["API_PORT"]?.toIntOrNull() ?: 8080
 
       return ClickhouseConfig(clickhouseUrl, clickhouseUser, clickhousePassword, apiHost, apiPort)
     }

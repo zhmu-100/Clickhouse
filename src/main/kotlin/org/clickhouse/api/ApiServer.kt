@@ -26,52 +26,35 @@ fun Application.apiModule() {
 
   routing {
     post("/insert") {
-      try {
-        val request = call.receive<InsertRequest>()
-        val insertedRows = service.insert(request.table, request.data)
-        call.respond(InsertResponse("success", insertedRows))
-      } catch (e: Exception) {
-        e.printStackTrace()
-        call.respondText("Error: ${e.localizedMessage}")
-      }
+      val request = call.receive<InsertRequest>()
+      val insertedRows = service.insert(request.table, request.data)
+      call.respond(InsertResponse("success", insertedRows))
     }
+
     post("/select") {
-      try {
-        val request = call.receive<SelectRequest>()
-        val result =
-            service.select(
-                request.table,
-                request.columns,
-                request.filters,
-                request.orderBy,
-                request.limit,
-                request.offset)
-        call.respond(SelectResponse("success", result.map { it.toJsonObject() }))
-      } catch (e: Exception) {
-        e.printStackTrace()
-        call.respondText("Error: ${e.localizedMessage}")
-      }
+      val request = call.receive<SelectRequest>()
+      val result =
+          service.select(
+              request.table,
+              request.columns,
+              request.filters,
+              request.orderBy,
+              request.limit,
+              request.offset)
+      call.respond(SelectResponse("success", result.map { it.toJsonObject() }))
     }
+
     put("/update") {
-      try {
-        val request = call.receive<UpdateRequest>()
-        val affectedRows =
-            service.update(request.table, request.data, request.condition, request.conditionParams)
-        call.respond(UpdateResponse("success", affectedRows))
-      } catch (e: Exception) {
-        e.printStackTrace()
-        call.respondText("Error: ${e.localizedMessage}")
-      }
+      val request = call.receive<UpdateRequest>()
+      val affectedRows =
+          service.update(request.table, request.data, request.condition, request.conditionParams)
+      call.respond(UpdateResponse("success", affectedRows))
     }
+
     delete("/delete") {
-      try {
-        val request = call.receive<DeleteRequest>()
-        val affectedRows = service.delete(request.table, request.condition, request.conditionParams)
-        call.respond(DeleteResponse("success", affectedRows))
-      } catch (e: Exception) {
-        e.printStackTrace()
-        call.respondText("Error: ${e.localizedMessage}")
-      }
+      val request = call.receive<DeleteRequest>()
+      val error = service.delete(request.table, request.condition, request.conditionParams)
+      call.respond(DeleteResponse("success", error))
     }
   }
 }
@@ -109,17 +92,16 @@ data class DeleteRequest(
 
 @Serializable data class UpdateResponse(val status: String, val affectedRows: Int)
 
-@Serializable data class DeleteResponse(val status: String, val affectedRows: Int)
+@Serializable data class DeleteResponse(val status: String, val error: Int)
 
 fun Map<String, Any?>.toJsonObject(): JsonObject {
-  val content =
-      this.mapValues { (_, value) ->
-        when (value) {
-          null -> JsonNull
-          is Number -> JsonPrimitive(value)
-          is Boolean -> JsonPrimitive(value)
-          else -> JsonPrimitive(value.toString())
-        }
-      }
+  val content = mapValues { (_, value) ->
+    when (value) {
+      null -> JsonNull
+      is Number -> JsonPrimitive(value)
+      is Boolean -> JsonPrimitive(value)
+      else -> JsonPrimitive(value.toString())
+    }
+  }
   return JsonObject(content)
 }

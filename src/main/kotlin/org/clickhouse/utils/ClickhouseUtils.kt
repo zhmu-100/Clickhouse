@@ -11,7 +11,7 @@ object ClickhouseUtils {
     params.forEachIndexed { index, param -> preparedStatement.setObject(index + 1, param) }
   }
 
-  fun convertJsonElement(json: JsonElement): Any? {
+  fun convertJsonElement(json: JsonElement): Any {
     if (json is kotlinx.serialization.json.JsonPrimitive) {
       return if (json.isString) {
         json.content
