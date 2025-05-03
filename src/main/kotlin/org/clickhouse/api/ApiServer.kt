@@ -1,5 +1,6 @@
 package org.clickhouse.api
 
+import com.mad.model.LogLevel
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -10,11 +11,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import org.clickhouse.connection.ClickhouseConnection
 import org.clickhouse.service.ClickhouseService
 import org.clickhouse.service.IClickhouseService
 import org.clickhouse.utils.Logger
-import org.clickhouse.connection.ClickhouseConnection
-import com.mad.model.LogLevel
 
 /**
  * Точка входа в сервис Clickhouse.
@@ -25,39 +25,38 @@ fun main() {
   // Инициализируем логгер
   Logger.init()
   Logger.logActivity("Запуск сервиса Clickhouse")
-  
+
   val config = org.clickhouse.connection.ClickhouseConfig.load()
   Logger.logActivity("Загружена конфигурация")
-  
+
   try {
     val server = embeddedServer(Netty, host = config.apiHost, port = config.apiPort) { apiModule() }
-    
+
     // Добавляем обработчик для корректного завершения работы
-    Runtime.getRuntime().addShutdownHook(Thread {
-      Logger.logActivity("Завершение работы сервиса")
-      server.stop(1000, 2000)
-      ClickhouseConnection.close()
-      Logger.close()
-    })
-    
+    Runtime.getRuntime()
+        .addShutdownHook(
+            Thread {
+              Logger.logActivity("Завершение работы сервиса")
+              server.stop(1000, 2000)
+              ClickhouseConnection.close()
+              Logger.close()
+            })
+
     Logger.logActivity("Сервер запущен")
-    
+
     server.start(wait = true)
   } catch (e: Exception) {
     Logger.logError(
-      "Ошибка при запуске сервера",
-      e.message ?: "Неизвестная ошибка",
-      stackTrace = e.stackTraceToString(),
-      level = LogLevel.FATAL
-    )
+        "Ошибка при запуске сервера",
+        e.message ?: "Неизвестная ошибка",
+        stackTrace = e.stackTraceToString(),
+        level = LogLevel.FATAL)
     ClickhouseConnection.close()
     Logger.close()
   }
 }
 
-/**
- * Генерирует уникальный идентификатор запроса.
- */
+/** Генерирует уникальный идентификатор запроса. */
 private fun generateRequestId(): String {
   return java.util.UUID.randomUUID().toString()
 }
@@ -80,22 +79,21 @@ fun Application.apiModule() {
     post("/insert") {
       val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на вставку данных")
-      
+
       try {
         val request = call.receive<InsertRequest>()
         Logger.logActivity("Запрос на вставку данных обработан")
-        
+
         val insertedRows = service.insert(request.table, request.data)
-        
+
         Logger.logActivity("Данные успешно вставлены")
-        
+
         call.respond(InsertResponse("success", insertedRows))
       } catch (e: Exception) {
         Logger.logError(
-          "Ошибка при вставке данных",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при вставке данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
         throw e
       }
     }
@@ -103,11 +101,11 @@ fun Application.apiModule() {
     post("/select") {
       val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на выборку данных")
-      
+
       try {
         val request = call.receive<SelectRequest>()
         Logger.logActivity("Запрос на выборку данных обработан")
-        
+
         val result =
             service.select(
                 request.table,
@@ -116,16 +114,15 @@ fun Application.apiModule() {
                 request.orderBy,
                 request.limit,
                 request.offset)
-        
+
         Logger.logActivity("Данные успешно выбраны")
-        
+
         call.respond(SelectResponse("success", result.map { it.toJsonObject() }))
       } catch (e: Exception) {
         Logger.logError(
-          "Ошибка при выборке данных",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при выборке данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
         throw e
       }
     }
@@ -133,23 +130,22 @@ fun Application.apiModule() {
     put("/update") {
       val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на обновление данных")
-      
+
       try {
         val request = call.receive<UpdateRequest>()
         Logger.logActivity("Запрос на обновление данных обработан")
-        
+
         val affectedRows =
             service.update(request.table, request.data, request.condition, request.conditionParams)
-        
+
         Logger.logActivity("Данные успешно обновлены")
-        
+
         call.respond(UpdateResponse("success", affectedRows))
       } catch (e: Exception) {
         Logger.logError(
-          "Ошибка при обновлении данных",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при обновлении данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
         throw e
       }
     }
@@ -157,26 +153,25 @@ fun Application.apiModule() {
     delete("/delete") {
       val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на удаление данных")
-      
+
       try {
         val request = call.receive<DeleteRequest>()
         Logger.logActivity("Запрос на удаление данных обработан")
-        
+
         val error = service.delete(request.table, request.condition, request.conditionParams)
-        
+
         Logger.logActivity("Данные успешно удалены")
-        
+
         call.respond(DeleteResponse("success", error))
       } catch (e: Exception) {
         Logger.logError(
-          "Ошибка при удалении данных",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при удалении данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
         throw e
       }
     }
-    
+
     // Проверка работоспособности
     get("/health") {
       Logger.logActivity("Получен запрос на проверку работоспособности")

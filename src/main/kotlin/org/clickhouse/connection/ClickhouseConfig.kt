@@ -59,7 +59,7 @@ data class ClickhouseConfig(
 
       val apiHost = dotenv["API_HOST"] ?: "0.0.0.0"
       val apiPort = dotenv["API_PORT"]?.toIntOrNull() ?: 8080
-      
+
       val redisHost = dotenv["REDIS_HOST"] ?: "localhost"
       val redisPort = dotenv["REDIS_PORT"]?.toIntOrNull() ?: 6379
       val redisPassword = dotenv["REDIS_PASSWORD"] ?: ""
@@ -67,17 +67,16 @@ data class ClickhouseConfig(
       val redisErrorChannel = dotenv["REDIS_ERROR_CHANNEL"] ?: "logger:error"
 
       return ClickhouseConfig(
-          clickhouseUrl, 
-          clickhouseUser, 
-          clickhousePassword, 
-          apiHost, 
+          clickhouseUrl,
+          clickhouseUser,
+          clickhousePassword,
+          apiHost,
           apiPort,
           redisHost,
           redisPort,
           redisPassword,
           redisActivityChannel,
-          redisErrorChannel
-      )
+          redisErrorChannel)
     }
   }
 }

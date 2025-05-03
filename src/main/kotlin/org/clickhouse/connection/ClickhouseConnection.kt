@@ -1,5 +1,6 @@
 package org.clickhouse.connection
 
+import com.mad.model.LogLevel
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
@@ -7,7 +8,6 @@ import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.clickhouse.utils.Logger
-import com.mad.model.LogLevel
 
 /**
  * Объект для управления пулом соединений с базой данных ClickHouse.
@@ -28,7 +28,7 @@ object ClickhouseConnection {
   init {
     Logger.init()
     Logger.logActivity("Инициализация пула соединений ClickHouse")
-    
+
     repeat(INITIAL_POOL_SIZE) {
       try {
         val conn = createNewConnection()
@@ -37,10 +37,9 @@ object ClickhouseConnection {
         Logger.logActivity("Создано начальное соединение с ClickHouse")
       } catch (e: Exception) {
         Logger.logError(
-          "Ошибка при создании начального соединения с ClickHouse",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при создании начального соединения с ClickHouse",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
       }
     }
   }
@@ -55,18 +54,16 @@ object ClickhouseConnection {
     val config = ClickhouseConfig.load()
     val url = config.clickhouseUrl
     Logger.logActivity("Создание нового соединения с ClickHouse")
-    
+
     return try {
-      val connection = DriverManager.getConnection(url, config.clickhouseUser, config.clickhousePassword)
+      val connection =
+          DriverManager.getConnection(url, config.clickhouseUser, config.clickhousePassword)
       Logger.logActivity("Соединение с ClickHouse успешно создано")
       connection
     } catch (e: SQLException) {
       val errorMessage = "Error while connecting to db: ${e.message}"
       Logger.logError(
-        "Ошибка при подключении к ClickHouse",
-        errorMessage,
-        stackTrace = e.stackTraceToString()
-      )
+          "Ошибка при подключении к ClickHouse", errorMessage, stackTrace = e.stackTraceToString())
       throw RuntimeException(errorMessage, e)
     }
   }
@@ -82,7 +79,7 @@ object ClickhouseConnection {
    */
   fun getConnection(): Connection {
     Logger.logActivity("Запрос соединения из пула")
-    
+
     val conn =
         connectionPool.poll()
             ?: run {
@@ -91,21 +88,19 @@ object ClickhouseConnection {
                 totalConnections.incrementAndGet()
                 createNewConnection()
               } else {
-                Logger.logActivity("Ожидание освобождения соединения (пул исчерпан)", level = LogLevel.WARN)
+                Logger.logActivity(
+                    "Ожидание освобождения соединения (пул исчерпан)", level = LogLevel.WARN)
                 val connection = connectionPool.poll(30, TimeUnit.SECONDS)
                 if (connection == null) {
                   val errorMessage = "Timeout waiting for a database connection"
                   Logger.logError(
-                    "Таймаут ожидания соединения",
-                    errorMessage,
-                    level = LogLevel.ERROR
-                  )
+                      "Таймаут ожидания соединения", errorMessage, level = LogLevel.ERROR)
                   throw RuntimeException(errorMessage)
                 }
                 connection
               }
             }
-    
+
     Logger.logActivity("Соединение получено из пула")
     return PooledConnection(conn)
   }
@@ -123,10 +118,10 @@ object ClickhouseConnection {
   /** Закрывает все соединения в пуле. */
   fun close() {
     Logger.logActivity("Закрытие всех соединений в пуле")
-    
+
     var successCount = 0
     var errorCount = 0
-    
+
     connectionPool.forEach { conn ->
       try {
         conn.close()
@@ -134,16 +129,15 @@ object ClickhouseConnection {
       } catch (e: SQLException) {
         errorCount++
         Logger.logError(
-          "Ошибка при закрытии соединения",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при закрытии соединения",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
         e.printStackTrace()
       }
     }
-    
+
     Logger.logActivity("Закрытие соединений завершено")
-    
+
     // Закрываем логгер в конце работы
     Logger.close()
   }
