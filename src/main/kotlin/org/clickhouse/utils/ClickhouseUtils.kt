@@ -1,97 +1,93 @@
 package org.clickhouse.utils
 
+import com.mad.client.LoggerClient
+import com.mad.model.LogLevel
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
-import com.mad.client.LoggerClient
-import com.mad.model.LogLevel
 import org.clickhouse.connection.ClickhouseConfig
 
 /**
  * Обертка для логгера, использующая LoggerClient из logger-lib.
- * 
- * Предоставляет методы для логирования активности и ошибок.
- * Инициализируется с настройками из ClickhouseConfig.
+ *
+ * Предоставляет методы для логирования активности и ошибок. Инициализируется с настройками из
+ * ClickhouseConfig.
  */
 object Logger {
-    private lateinit var loggerClient: LoggerClient
-    private var initialized = false
-    
-    /**
-     * Инициализирует логгер с настройками из конфигурации.
-     */
-    fun init() {
-        if (initialized) return
-        
-        val config = ClickhouseConfig.load()
-        loggerClient = LoggerClient(
+  private lateinit var loggerClient: LoggerClient
+  private var initialized = false
+
+  /** Инициализирует логгер с настройками из конфигурации. */
+  fun init() {
+    if (initialized) return
+
+    val config = ClickhouseConfig.load()
+    loggerClient =
+        LoggerClient(
             host = config.redisHost,
             port = config.redisPort,
             password = config.redisPassword,
             activityChannel = config.redisActivityChannel,
-            errorChannel = config.redisErrorChannel
-        )
-        initialized = true
+            errorChannel = config.redisErrorChannel)
+    initialized = true
+  }
+
+  /**
+   * Логирует активность.
+   *
+   * @param event Событие для логирования.
+   * @param userId ID пользователя (опционально).
+   * @param deviceModel Модель устройства (опционально).
+   * @param level Уровень логирования.
+   */
+  fun logActivity(
+      event: String,
+      userId: String? = null,
+      deviceModel: String? = null,
+      level: LogLevel = LogLevel.INFO
+  ) {
+    ensureInitialized()
+    loggerClient.logActivity(event, userId, deviceModel, level)
+  }
+
+  /**
+   * Логирует ошибку.
+   *
+   * @param event Событие для логирования.
+   * @param errorMessage Сообщение об ошибке.
+   * @param userId ID пользователя (опционально).
+   * @param deviceModel Модель устройства (опционально).
+   * @param stackTrace Стек вызовов (опционально).
+   * @param level Уровень логирования.
+   */
+  fun logError(
+      event: String,
+      errorMessage: String,
+      userId: String? = null,
+      deviceModel: String? = null,
+      stackTrace: String? = null,
+      level: LogLevel = LogLevel.ERROR
+  ) {
+    ensureInitialized()
+    loggerClient.logError(event, errorMessage, userId, deviceModel, stackTrace, level)
+  }
+
+  /** Закрывает логгер. */
+  fun close() {
+    if (initialized) {
+      loggerClient.close()
+      initialized = false
     }
-    
-    /**
-     * Логирует активность.
-     * 
-     * @param event Событие для логирования.
-     * @param userId ID пользователя (опционально).
-     * @param deviceModel Модель устройства (опционально).
-     * @param level Уровень логирования.
-     */
-    fun logActivity(
-        event: String,
-        userId: String? = null,
-        deviceModel: String? = null,
-        level: LogLevel = LogLevel.INFO
-    ) {
-        ensureInitialized()
-        loggerClient.logActivity(event, userId, deviceModel, level)
+  }
+
+  private fun ensureInitialized() {
+    if (!initialized) {
+      init()
     }
-    
-    /**
-     * Логирует ошибку.
-     * 
-     * @param event Событие для логирования.
-     * @param errorMessage Сообщение об ошибке.
-     * @param userId ID пользователя (опционально).
-     * @param deviceModel Модель устройства (опционально).
-     * @param stackTrace Стек вызовов (опционально).
-     * @param level Уровень логирования.
-     */
-    fun logError(
-        event: String,
-        errorMessage: String,
-        userId: String? = null,
-        deviceModel: String? = null,
-        stackTrace: String? = null,
-        level: LogLevel = LogLevel.ERROR
-    ) {
-        ensureInitialized()
-        loggerClient.logError(event, errorMessage, userId, deviceModel, stackTrace, level)
-    }
-    
-    /**
-     * Закрывает логгер.
-     */
-    fun close() {
-        if (initialized) {
-            loggerClient.close()
-            initialized = false
-        }
-    }
-    
-    private fun ensureInitialized() {
-        if (!initialized) {
-            init()
-        }
-    }
+  }
 }
 
 /**
@@ -120,10 +116,9 @@ object ClickhouseUtils {
       Logger.logActivity("Установка параметров в PreparedStatement")
     } catch (e: Exception) {
       Logger.logError(
-        "Ошибка при установке параметров в PreparedStatement",
-        e.message ?: "Неизвестная ошибка",
-        stackTrace = e.stackTraceToString()
-      )
+          "Ошибка при установке параметров в PreparedStatement",
+          e.message ?: "Неизвестная ошибка",
+          stackTrace = e.stackTraceToString())
       throw e
     }
   }
@@ -141,25 +136,25 @@ object ClickhouseUtils {
    */
   fun convertJsonElement(json: JsonElement): Any {
     try {
-      val result = if (json is kotlinx.serialization.json.JsonPrimitive) {
-        if (json.isString) {
-          json.content
-        } else {
-          json.intOrNull ?: json.doubleOrNull ?: json.booleanOrNull ?: json.content
-        }
-      } else {
-        json.toString()
-      }
-      
+      val result =
+          if (json is kotlinx.serialization.json.JsonPrimitive) {
+            if (json.isString) {
+              json.content
+            } else {
+              json.intOrNull ?: json.doubleOrNull ?: json.booleanOrNull ?: json.content
+            }
+          } else {
+            json.toString()
+          }
+
       Logger.logActivity("Преобразование JsonElement", level = LogLevel.DEBUG)
-      
+
       return result
     } catch (e: Exception) {
       Logger.logError(
-        "Ошибка при преобразовании JsonElement",
-        e.message ?: "Неизвестная ошибка",
-        stackTrace = e.stackTraceToString()
-      )
+          "Ошибка при преобразовании JsonElement",
+          e.message ?: "Неизвестная ошибка",
+          stackTrace = e.stackTraceToString())
       throw e
     }
   }
@@ -178,7 +173,7 @@ object ClickhouseUtils {
       val metaData = rs.metaData
       val columnCount = metaData.columnCount
       val resultList = mutableListOf<Map<String, Any?>>()
-      
+
       var rowCount = 0
       while (rs.next()) {
         val row = mutableMapOf<String, Any?>()
@@ -189,16 +184,15 @@ object ClickhouseUtils {
         resultList.add(row)
         rowCount++
       }
-      
+
       Logger.logActivity("Преобразование ResultSet в список")
-      
+
       return resultList
     } catch (e: Exception) {
       Logger.logError(
-        "Ошибка при преобразовании ResultSet в список",
-        e.message ?: "Неизвестная ошибка",
-        stackTrace = e.stackTraceToString()
-      )
+          "Ошибка при преобразовании ResultSet в список",
+          e.message ?: "Неизвестная ошибка",
+          stackTrace = e.stackTraceToString())
       throw e
     }
   }
@@ -213,21 +207,17 @@ object ClickhouseUtils {
     try {
       if (!identifier.matches(Regex("^[A-Za-z0-9_]+\$"))) {
         val errorMessage = "Invalid identifier: $identifier"
-        Logger.logError(
-          "Ошибка валидации идентификатора",
-          errorMessage
-        )
+        Logger.logError("Ошибка валидации идентификатора", errorMessage)
         throw RuntimeException(errorMessage)
       }
-      
+
       Logger.logActivity("Валидация идентификатора", level = LogLevel.DEBUG)
     } catch (e: Exception) {
       if (e !is RuntimeException || e.message?.startsWith("Invalid identifier") != true) {
         Logger.logError(
-          "Ошибка при валидации идентификатора",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при валидации идентификатора",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
       }
       throw e
     }
@@ -246,16 +236,15 @@ object ClickhouseUtils {
       val parts = orderBy.split(",").map { it.trim() }
       val pattern = Regex("^[A-Za-z0-9_]+(\\s+(ASC|DESC))?\$", RegexOption.IGNORE_CASE)
       val isValid = parts.all { pattern.matches(it) }
-      
+
       Logger.logActivity("Проверка ORDER BY", level = LogLevel.DEBUG)
-      
+
       return isValid
     } catch (e: Exception) {
       Logger.logError(
-        "Ошибка при проверке ORDER BY",
-        e.message ?: "Неизвестная ошибка",
-        stackTrace = e.stackTraceToString()
-      )
+          "Ошибка при проверке ORDER BY",
+          e.message ?: "Неизвестная ошибка",
+          stackTrace = e.stackTraceToString())
       throw e
     }
   }
@@ -272,30 +261,27 @@ object ClickhouseUtils {
     try {
       var index = 0
       val regex = Regex("\\?")
-      val result = regex.replace(condition) {
-        if (index >= params.size) {
-          val errorMessage = "Not enough parameters for condition"
-          Logger.logError(
-            "Ошибка подстановки параметров",
-            errorMessage
-          )
-          throw RuntimeException(errorMessage)
-        }
-        val literal = toSqlLiteral(params[index])
-        index++
-        literal
-      }
-      
+      val result =
+          regex.replace(condition) {
+            if (index >= params.size) {
+              val errorMessage = "Not enough parameters for condition"
+              Logger.logError("Ошибка подстановки параметров", errorMessage)
+              throw RuntimeException(errorMessage)
+            }
+            val literal = toSqlLiteral(params[index])
+            index++
+            literal
+          }
+
       Logger.logActivity("Подстановка параметров в условие")
-      
+
       return result
     } catch (e: Exception) {
       if (e !is RuntimeException || e.message?.startsWith("Not enough parameters") != true) {
         Logger.logError(
-          "Ошибка при подстановке параметров в условие",
-          e.message ?: "Неизвестная ошибка",
-          stackTrace = e.stackTraceToString()
-        )
+            "Ошибка при подстановке параметров в условие",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
       }
       throw e
     }
@@ -312,23 +298,23 @@ object ClickhouseUtils {
    */
   fun toSqlLiteral(param: Any?): String {
     try {
-      val result = when (param) {
-        null -> "NULL"
-        is Number -> param.toString()
-        is Boolean -> if (param) "1" else "0"
-        is String -> "'${param.replace("'", "''")}'"
-        else -> "'${param.toString().replace("'", "''")}'"
-      }
-      
+      val result =
+          when (param) {
+            null -> "NULL"
+            is Number -> param.toString()
+            is Boolean -> if (param) "1" else "0"
+            is String -> "'${param.replace("'", "''")}'"
+            else -> "'${param.toString().replace("'", "''")}'"
+          }
+
       Logger.logActivity("Преобразование в SQL-литерал", level = LogLevel.DEBUG)
-      
+
       return result
     } catch (e: Exception) {
       Logger.logError(
-        "Ошибка при преобразовании в SQL-литерал",
-        e.message ?: "Неизвестная ошибка",
-        stackTrace = e.stackTraceToString()
-      )
+          "Ошибка при преобразовании в SQL-литерал",
+          e.message ?: "Неизвестная ошибка",
+          stackTrace = e.stackTraceToString())
       throw e
     }
   }

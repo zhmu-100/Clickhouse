@@ -27,7 +27,7 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:2.2.4")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.0")
     implementation("ru.yandex.clickhouse:clickhouse-jdbc:0.3.2")
-	implementation("com.github.poplopok:Logger:1.0.6")
+	  implementation("com.github.poplopok:Logger:1.0.6")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.8.2")
     testImplementation("io.ktor:ktor-server-tests-jvm:2.2.4")
