@@ -10,7 +10,7 @@ services:
     env_file:
       - ./${SERVICE_NAME:-clickhouse-service}.env
     ports:
-      - "${PORT:-8080}:8080"
+      - "${PORT:-8091}:8091"
     volumes:
       - app-data:/app/data
       - app-logs:/app/logs
