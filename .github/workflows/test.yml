@@ -1,0 +1,76 @@
+name: Test Service
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+        description: "Name of the service to test"
+      java-version:
+        required: false
+        type: string
+        default: '17'
+        description: "Java version to use"
+      run-integration-tests:
+        required: false
+        type: boolean
+        default: false
+        description: "Whether to run integration tests"
+    outputs:
+      test-status:
+        description: "Status of the tests (success/failure)"
+        value: ${{ jobs.test.outputs.status }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.set-status.outputs.status }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java-version }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+
+      - name: Setup Gradle Wrapper
+        run: |
+          chmod +x gradlew
+          gradle wrapper --gradle-version 8.10
+
+      - name: Run unit tests
+        run: ./gradlew test
+
+      - name: Run integration tests
+        if: ${{ inputs.run-integration-tests }}
+        run: ./gradlew integrationTest
+        continue-on-error: true
+
+      - name: Generate test reports
+        run: ./gradlew jacocoTestReport
+
+      - name: Set test status
+        id: set-status
+        run: |
+          if [ ${{ job.status }} == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.service-name }}-test-reports
+          path: ${{ inputs.service-name }}/build/reports
+          retention-days: 7

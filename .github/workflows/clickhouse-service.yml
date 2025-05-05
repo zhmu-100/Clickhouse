@@ -1,0 +1,50 @@
+name: Clickhouse-service Service CI/CD
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+jobs:
+  call-service-template:
+    uses: ./.github/workflows/service-template.yml
+    with:
+      service-name: clickhouse-service
+      java-version: '17'
+      run-integration-tests: true
+      registry: 'ghcr.io'
+      auto-deploy-prod: false
+    secrets:
+      registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      ssh-key: ${{ secrets.SSH_KEY }}
+      dev-host: ${{ secrets.DEV_HOST }}
+      prod-host: ${{ secrets.PROD_HOST }}
+
+  notify:
+    needs: call-service-template
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Set status
+        id: status
+        run: |
+          if [[ "${{ needs.call-service-template.result }}" == "success" ]]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "message=Clickhouse-service service deployment completed successfully" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "message=Clickhouse-service service deployment failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send notification
+        uses: rtCamp/action-slack-notify@v2
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ steps.status.outputs.success == 'true' && 'good' || 'danger' }}
+          SLACK_TITLE: Clickhouse-service Service Deployment
+          SLACK_MESSAGE: ${{ steps.status.outputs.message }}
+          SLACK_FOOTER: "Sport Activity Tracking App CI/CD"

@@ -1,0 +1,156 @@
+name: Deploy Service
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+        description: "Name of the service to deploy"
+      environment:
+        required: true
+        type: string
+        description: "Deployment environment (dev/prod)"
+      registry:
+        required: false
+        type: string
+        default: 'ghcr.io'
+        description: "Container registry to use"
+      registry-username:
+        required: false
+        type: string
+        default: '${{ github.actor }}'
+        description: "Username for container registry"
+      version:
+        required: true
+        type: string
+        description: "Version of the service to deploy"
+    secrets:
+      registry-token:
+        required: true
+        description: "Token for container registry authentication"
+      ssh-key:
+        required: true
+        description: "SSH key for the deployment server"
+      deploy-host:
+        required: true
+        description: "Host to deploy to"
+    outputs:
+      deploy-status:
+        description: "Status of the deployment (success/failure)"
+        value: ${{ jobs.deploy.outputs.status }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.set-status.outputs.status }}
+    env:
+      DEPLOY_HOST: ${{ secrets.deploy-host }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.service-name }}-artifacts
+          path: ./artifacts
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ inputs.registry-username }}
+          password: ${{ secrets.registry-token }}
+
+      - name: Create Docker auth config for remote server
+        run: |
+          mkdir -p deploy/docker-auth
+          # Create auth config specifically for the target registry
+          echo '{
+            "auths": {
+              "${{ inputs.registry }}": {
+                "auth": "'$(echo -n "${{ inputs.registry-username }}:${{ secrets.registry-token }}" | base64)'"
+              }
+            }
+          }' > deploy/docker-auth/config.json
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./services/${{ inputs.service-name }}/Dockerfile
+          push: true
+          tags: |
+            ${{ inputs.registry }}/${{ github.repository_owner }}/${{ inputs.service-name }}:${{ inputs.version }}
+            ${{ inputs.registry }}/${{ github.repository_owner }}/${{ inputs.service-name }}:latest
+          build-args: |
+            SERVICE_NAME=${{ inputs.service-name }}
+            SERVICE_VERSION=${{ inputs.version }}
+            JAR_FILE=./artifacts/DB-all.jar
+
+      - name: Prepare deployment files
+        run: |
+          mkdir -p deploy
+          cp docker/docker-compose-template.yml deploy/docker-compose.yml
+          cp config/application/${{ inputs.service-name }}/application.conf deploy/${{ inputs.service-name }}.conf
+          cp config/${{ inputs.environment }}/${{ inputs.service-name }}.env deploy/
+
+      - name: Prepare .env file
+        run: |
+          # Adding SERVICE_NAME to .env file
+          echo "SERVICE_NAME=${{ inputs.service-name }}" >> deploy/${{ inputs.service-name }}.env
+          # Adding REGISTRY to .env file
+          echo "REGISTRY=${{ inputs.registry }}/${{ github.repository_owner }}" >> deploy/${{ inputs.service-name }}.env
+          # Adding SERVICE_VERSION to .env file
+          echo "SERVICE_VERSION=${{ inputs.version }}" >> deploy/${{ inputs.service-name }}.env
+          # Adding DEPLOYMENT_ENV to .env file
+          echo "DEPLOYMENT_ENV=${{ inputs.environment }}" >> deploy/${{ inputs.service-name }}.env
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.ssh-key }}
+
+      - name: Deploy to server
+        run: |
+          echo "Deploying to ${{ inputs.environment }} environment on ${{ secrets.deploy-host }}"
+          # Ensure target directory exists
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "mkdir -p /opt/deployment/${{ inputs.service-name }}"
+          # Create docker config directory on remote server if it doesn't exist
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "mkdir -p ~/.docker"
+          # Copy Docker auth config to remote server
+          scp -r -o LogLevel=ERROR -o StrictHostKeyChecking=no -q -T -o ConnectTimeout=60 -C deploy/docker-auth/config.json deploy@${{ secrets.deploy-host }}:~/.docker/config.json
+          # Set proper permissions for Docker config
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "chmod 600 ~/.docker/config.json"
+          # Clean target directory
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "rm -rf /opt/deployment/${{ inputs.service-name }}/*"
+          # Copy deployment files
+          scp -r -o LogLevel=ERROR -o StrictHostKeyChecking=no -q -T -o ConnectTimeout=60 -C deploy/* deploy@${{ secrets.deploy-host }}:/opt/deployment/${{ inputs.service-name }}/
+          scp -r -o LogLevel=ERROR -o StrictHostKeyChecking=no -q -T -o ConnectTimeout=60 -C deploy/${{ inputs.service-name }}.env deploy@${{ secrets.deploy-host }}:/opt/deployment/${{ inputs.service-name }}/.env
+          # Verify files exist
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "ls -la /opt/deployment/${{ inputs.service-name }}/"
+          # Check Docker daemon status
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "if ! systemctl is-active --quiet docker; then echo 'Docker is not running!'; exit 1; fi"
+          # Create the required external network if it doesn't exist
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "docker network inspect app-network >/dev/null 2>&1 || docker network create app-network"
+          # Pull images and start services
+          ssh -o LogLevel=ERROR -o StrictHostKeyChecking=no -T -q -o ConnectTimeout=60 deploy@${{ secrets.deploy-host }} "cd /opt/deployment/${{ inputs.service-name }} && docker compose --env-file .env pull -q && docker compose --env-file .env up -d"
+
+      - name: Verify deployment
+        run: |
+          sleep 30
+          ssh -o StrictHostKeyChecking=no deploy@${{ secrets.deploy-host }} "docker ps | grep ${{ inputs.service-name }}"
+          if [ $? -eq 0 ]; then
+            echo "Deployment successful"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "Deployment failed"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        id: set-status

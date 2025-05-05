@@ -1,0 +1,87 @@
+name: Version Service
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+        description: "Name of the service to version"
+      bump-type:
+        required: false
+        type: string
+        default: 'patch'
+        description: "Type of version bump (patch/minor/major)"
+    outputs:
+      new-version:
+        description: "New version number"
+        value: ${{ jobs.version.outputs.new-version }}
+      version-tag:
+        description: "Git tag for the new version"
+        value: ${{ jobs.version.outputs.version-tag }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      new-version: ${{ steps.bump-version.outputs.new-version }}
+      version-tag: ${{ steps.bump-version.outputs.version-tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current version
+        id: get-version
+        run: |
+          # Get latest tag for this service or default to 0.1.0 if none exists
+          LATEST_TAG=$(git tag -l "${{ inputs.service-name }}-*" | sort -V | tail -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "current-version=0.1.0" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(echo $LATEST_TAG | sed "s/${{ inputs.service-name }}-//")
+            echo "current-version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version
+        id: bump-version
+        run: |
+          CURRENT_VERSION=${{ steps.get-version.outputs.current-version }}
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+
+          if [ "${{ inputs.bump-type }}" == "major" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [ "${{ inputs.bump-type }}" == "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          VERSION_TAG="${{ inputs.service-name }}-$NEW_VERSION"
+
+          echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version-tag=$VERSION_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create version file
+        run: |
+          mkdir -p services/${{ inputs.service-name }}/version
+          echo "${{ steps.bump-version.outputs.new-version }}" > services/${{ inputs.service-name }}/version/VERSION
+
+      - name: Tag version
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add services/${{ inputs.service-name }}/version/VERSION
+          git commit -m "Bump ${{ inputs.service-name }} version to ${{ steps.bump-version.outputs.new-version }}"
+          git tag ${{ steps.bump-version.outputs.version-tag }}
+          git push origin ${{ steps.bump-version.outputs.version-tag }}
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

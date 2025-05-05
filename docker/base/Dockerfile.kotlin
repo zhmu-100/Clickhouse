@@ -1,0 +1,27 @@
+FROM bellsoft/liberica-openjdk-alpine:17
+
+WORKDIR /app
+
+# Common environment variables
+ENV JAVA_OPTS="-Xmx512m"
+ENV SERVICE_NAME="base-service"
+ENV SERVICE_VERSION="unknown"
+ENV DEPLOYMENT_ENV="dev"
+
+# Create a non-root user to run the application
+RUN addgroup --system --gid 1001 appuser && \
+  adduser --system --uid 1001 --gid 1001 appuser
+
+# Common health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://localhost:8080/health || exit 1
+
+# Set proper permissions
+RUN mkdir -p /app/logs && \
+  chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Common entrypoint
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/service.jar"]

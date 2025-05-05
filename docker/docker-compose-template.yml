@@ -1,0 +1,80 @@
+services:
+  app:
+    image: ${REGISTRY:-localhost}/${SERVICE_NAME:-clickhouse-service}:${SERVICE_VERSION:-latest}
+    container_name: ${SERVICE_NAME:-clickhouse-service}
+    restart: always
+    environment:
+      - SERVICE_ENV=${DEPLOYMENT_ENV:-development}
+      - JAVA_OPTS=-Xmx512m -Xms256m
+      # Additional environment variables will be loaded from env file
+    env_file:
+      - ./${SERVICE_NAME:-clickhouse-service}.env
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - app-data:/app/data
+      - app-logs:/app/logs
+      # - ./config/${DEPLOYMENT_ENV:-development}/${SERVICE_NAME:-clickhouse-service}.conf:/app/config/application.conf
+      - ./${SERVICE_NAME}.conf:/app/config/application.conf
+      - ./${SERVICE_NAME:-clickhouse-service}.env:/app/.env
+      - ./${SERVICE_NAME:-clickhouse-service}.env:/.env
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-latest}
+    container_name: ${SERVICE_NAME:-clickhouse-service}-clickhouse
+    restart: always
+    environment:
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB:-test_db}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "${CLICKHOUSE_TCP_PORT:-9000}:9000"
+    networks:
+      - app-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8123/ping",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  app-network:
+    external: true
+
+volumes:
+  app-data:
+    name: ${SERVICE_NAME:-clickhouse-service}-data-${DEPLOYMENT_ENV:-development}
+  app-logs:
+    name: ${SERVICE_NAME:-clickhouse-service}-logs-${DEPLOYMENT_ENV:-development}
+  clickhouse-data:
+    name: ${SERVICE_NAME:-clickhouse-service}-clickhouse-data-${DEPLOYMENT_ENV:-development}

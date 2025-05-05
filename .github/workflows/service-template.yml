@@ -1,0 +1,82 @@
+name: Service CI/CD Template
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+        description: "Name of the service"
+      java-version:
+        required: false
+        type: string
+        default: "17"
+        description: "Java version to use"
+      run-integration-tests:
+        required: false
+        type: boolean
+        default: true
+        description: "Whether to run integration tests"
+      registry:
+        required: false
+        type: string
+        default: "ghcr.io"
+        description: "Container registry to use"
+      auto-deploy-prod:
+        required: false
+        type: boolean
+        default: false
+        description: "Whether to auto-deploy to production"
+    secrets:
+      registry-token:
+        required: true
+        description: "Token for container registry authentication"
+      ssh-key:
+        required: true
+        description: "SSH key for the deployment server"
+      dev-host:
+        required: true
+        description: "Host to deploy dev environment to"
+      prod-host:
+        required: true
+        description: "Host to deploy production environment to"
+
+jobs:
+  version:
+    name: Version Service
+    uses: ./.github/workflows/versioning.yml
+    with:
+      service-name: ${{ inputs.service-name }}
+      bump-type: "patch" # Default to patch version increment
+
+  build:
+    name: Build Service
+    needs: version
+    uses: ./.github/workflows/build.yml
+    with:
+      service-name: ${{ inputs.service-name }}
+      java-version: ${{ inputs.java-version }}
+      gradle-task: "build"
+
+  test:
+    name: Test Service
+    needs: build
+    uses: ./.github/workflows/test.yml
+    with:
+      service-name: ${{ inputs.service-name }}
+      java-version: ${{ inputs.java-version }}
+      run-integration-tests: ${{ inputs.run-integration-tests }}
+
+  deploy-dev:
+    name: Deploy to Development
+    needs: [version, test]
+    uses: ./.github/workflows/deploy.yml
+    with:
+      service-name: ${{ inputs.service-name }}
+      environment: "dev"
+      registry: ${{ inputs.registry }}
+      version: ${{ needs.version.outputs.new-version }}
+    secrets:
+      registry-token: ${{ secrets.registry-token }}
+      ssh-key: ${{ secrets.ssh-key }}
+      deploy-host: ${{ secrets.dev-host }}
