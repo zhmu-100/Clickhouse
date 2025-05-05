@@ -91,7 +91,7 @@ jobs:
           build-args: |
             SERVICE_NAME=${{ inputs.service-name }}
             SERVICE_VERSION=${{ inputs.version }}
-            JAR_FILE=./artifacts/DB-all.jar
+            JAR_FILE=./artifacts/Clickhouse-all.jar
 
       - name: Prepare deployment files
         run: |
