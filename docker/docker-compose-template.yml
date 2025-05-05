@@ -33,13 +33,14 @@ services:
         max-file: "3"
 
   clickhouse:
-    image: clickhouse/clickhouse-server:${CLICKHOUSE_VERSION:-latest}
+    image: clickhouse/clickhouse-server:24.3
     container_name: ${SERVICE_NAME:-clickhouse-service}-clickhouse
     restart: always
     environment:
       - CLICKHOUSE_DB=test_db
       - CLICKHOUSE_USER=default
       - CLICKHOUSE_PASSWORD=default
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - ./init-scripts:/docker-entrypoint-initdb.d
@@ -49,15 +50,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8123/ping",
-        ]
+      test: ["CMD", "curl", "--fail", "http://localhost:8123/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
