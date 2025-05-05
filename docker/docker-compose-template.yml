@@ -37,9 +37,9 @@ services:
     container_name: ${SERVICE_NAME:-clickhouse-service}-clickhouse
     restart: always
     environment:
-      - CLICKHOUSE_DB=${CLICKHOUSE_DB:-test_db}
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-}
+      - CLICKHOUSE_DB=test_db
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=default
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - ./init-scripts:/docker-entrypoint-initdb.d
