@@ -57,7 +57,7 @@ class ClickhouseService : IClickhouseService {
           ClickhouseConnection.getConnection().use { connection ->
             connection.prepareStatement(sql).use { preparedStatement ->
               ClickhouseUtils.setParameters(preparedStatement, params)
-              val result = preparedStatement.executeUpdate()
+              preparedStatement.executeUpdate()
               Logger.logActivity("Выполнен запрос на вставку данных")
             }
           }

@@ -77,7 +77,6 @@ fun Application.apiModule() {
 
   routing {
     post("/insert") {
-      val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на вставку данных")
 
       try {
@@ -99,7 +98,6 @@ fun Application.apiModule() {
     }
 
     post("/select") {
-      val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на выборку данных")
 
       try {
@@ -128,7 +126,6 @@ fun Application.apiModule() {
     }
 
     put("/update") {
-      val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на обновление данных")
 
       try {
@@ -151,7 +148,6 @@ fun Application.apiModule() {
     }
 
     delete("/delete") {
-      val requestId = generateRequestId()
       Logger.logActivity("Получен запрос на удаление данных")
 
       try {
