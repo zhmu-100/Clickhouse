@@ -1,11 +1,5 @@
 package org.clickhouse.utils
 
-import io.mockk.every
-import io.mockk.mockk
-import java.sql.PreparedStatement
-import java.sql.ResultSet
-import java.sql.ResultSetMetaData
-import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -24,5 +18,4 @@ class ClickhouseUtilsTest {
       ClickhouseUtils.substitutePlaceholders("id = ? AND name = ?", listOf(1))
     }
   }
-
 }
