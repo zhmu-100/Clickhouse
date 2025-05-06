@@ -1,5 +1,6 @@
 package org.clickhouse.api
 
+import com.mad.model.LogLevel
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -10,8 +11,10 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import org.clickhouse.connection.ClickhouseConnection
 import org.clickhouse.service.ClickhouseService
 import org.clickhouse.service.IClickhouseService
+import org.clickhouse.utils.Logger
 
 /**
  * Точка входа в сервис Clickhouse.
@@ -19,9 +22,43 @@ import org.clickhouse.service.IClickhouseService
  * Настраивает и запускает Ktor сервер.
  */
 fun main() {
+  // Инициализируем логгер
+  Logger.init()
+  Logger.logActivity("Запуск сервиса Clickhouse")
+
   val config = org.clickhouse.connection.ClickhouseConfig.load()
-  embeddedServer(Netty, host = config.apiHost, port = config.apiPort) { apiModule() }
-      .start(wait = true)
+  Logger.logActivity("Загружена конфигурация")
+
+  try {
+    val server = embeddedServer(Netty, host = config.apiHost, port = config.apiPort) { apiModule() }
+
+    // Добавляем обработчик для корректного завершения работы
+    Runtime.getRuntime()
+        .addShutdownHook(
+            Thread {
+              Logger.logActivity("Завершение работы сервиса")
+              server.stop(1000, 2000)
+              ClickhouseConnection.close()
+              Logger.close()
+            })
+
+    Logger.logActivity("Сервер запущен")
+
+    server.start(wait = true)
+  } catch (e: Exception) {
+    Logger.logError(
+        "Ошибка при запуске сервера",
+        e.message ?: "Неизвестная ошибка",
+        stackTrace = e.stackTraceToString(),
+        level = LogLevel.FATAL)
+    ClickhouseConnection.close()
+    Logger.close()
+  }
+}
+
+/** Генерирует уникальный идентификатор запроса. */
+private fun generateRequestId(): String {
+  return java.util.UUID.randomUUID().toString()
 }
 
 /**
@@ -40,35 +77,101 @@ fun Application.apiModule() {
 
   routing {
     post("/insert") {
-      val request = call.receive<InsertRequest>()
-      val insertedRows = service.insert(request.table, request.data)
-      call.respond(InsertResponse("success", insertedRows))
+      Logger.logActivity("Получен запрос на вставку данных")
+
+      try {
+        val request = call.receive<InsertRequest>()
+        Logger.logActivity("Запрос на вставку данных обработан")
+
+        val insertedRows = service.insert(request.table, request.data)
+
+        Logger.logActivity("Данные успешно вставлены")
+
+        call.respond(InsertResponse("success", insertedRows))
+      } catch (e: Exception) {
+        Logger.logError(
+            "Ошибка при вставке данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
+        throw e
+      }
     }
 
     post("/select") {
-      val request = call.receive<SelectRequest>()
-      val result =
-          service.select(
-              request.table,
-              request.columns,
-              request.filters,
-              request.orderBy,
-              request.limit,
-              request.offset)
-      call.respond(SelectResponse("success", result.map { it.toJsonObject() }))
+      Logger.logActivity("Получен запрос на выборку данных")
+
+      try {
+        val request = call.receive<SelectRequest>()
+        Logger.logActivity("Запрос на выборку данных обработан")
+
+        val result =
+            service.select(
+                request.table,
+                request.columns,
+                request.filters,
+                request.orderBy,
+                request.limit,
+                request.offset)
+
+        Logger.logActivity("Данные успешно выбраны")
+
+        call.respond(SelectResponse("success", result.map { it.toJsonObject() }))
+      } catch (e: Exception) {
+        Logger.logError(
+            "Ошибка при выборке данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
+        throw e
+      }
     }
 
     put("/update") {
-      val request = call.receive<UpdateRequest>()
-      val affectedRows =
-          service.update(request.table, request.data, request.condition, request.conditionParams)
-      call.respond(UpdateResponse("success", affectedRows))
+      Logger.logActivity("Получен запрос на обновление данных")
+
+      try {
+        val request = call.receive<UpdateRequest>()
+        Logger.logActivity("Запрос на обновление данных обработан")
+
+        val affectedRows =
+            service.update(request.table, request.data, request.condition, request.conditionParams)
+
+        Logger.logActivity("Данные успешно обновлены")
+
+        call.respond(UpdateResponse("success", affectedRows))
+      } catch (e: Exception) {
+        Logger.logError(
+            "Ошибка при обновлении данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
+        throw e
+      }
     }
 
     delete("/delete") {
-      val request = call.receive<DeleteRequest>()
-      val error = service.delete(request.table, request.condition, request.conditionParams)
-      call.respond(DeleteResponse("success", error))
+      Logger.logActivity("Получен запрос на удаление данных")
+
+      try {
+        val request = call.receive<DeleteRequest>()
+        Logger.logActivity("Запрос на удаление данных обработан")
+
+        val error = service.delete(request.table, request.condition, request.conditionParams)
+
+        Logger.logActivity("Данные успешно удалены")
+
+        call.respond(DeleteResponse("success", error))
+      } catch (e: Exception) {
+        Logger.logError(
+            "Ошибка при удалении данных",
+            e.message ?: "Неизвестная ошибка",
+            stackTrace = e.stackTraceToString())
+        throw e
+      }
+    }
+
+    // Проверка работоспособности
+    get("/health") {
+      Logger.logActivity("Получен запрос на проверку работоспособности")
+      call.respond(mapOf("status" to "UP"))
     }
   }
 }
