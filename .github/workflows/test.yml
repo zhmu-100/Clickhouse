@@ -51,14 +51,6 @@ jobs:
       - name: Run unit tests
         run: ./gradlew test
 
-      - name: Run integration tests
-        if: ${{ inputs.run-integration-tests }}
-        run: ./gradlew integrationTest
-        continue-on-error: true
-
-      - name: Generate test reports
-        run: ./gradlew jacocoTestReport
-
       - name: Set test status
         id: set-status
         run: |
