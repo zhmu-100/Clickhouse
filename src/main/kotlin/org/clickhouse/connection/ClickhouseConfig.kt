@@ -55,10 +55,10 @@ data class ClickhouseConfig(
 
       val clickhouseUrl = dotenv["CLICKHOUSE_URL"] ?: "jdbc:clickhouse://localhost:8123/default"
       val clickhouseUser = dotenv["CLICKHOUSE_USER"] ?: "default"
-      val clickhousePassword = dotenv["CLICKHOUSE_PASSWORD"] ?: ""
+      val clickhousePassword = dotenv["CLICKHOUSE_PASSWORD"] ?: "default"
 
       val apiHost = dotenv["API_HOST"] ?: "0.0.0.0"
-      val apiPort = dotenv["API_PORT"]?.toIntOrNull() ?: 8080
+      val apiPort = dotenv["API_PORT"]?.toIntOrNull() ?: 8091
 
       val redisHost = dotenv["REDIS_HOST"] ?: "localhost"
       val redisPort = dotenv["REDIS_PORT"]?.toIntOrNull() ?: 6379
